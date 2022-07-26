@@ -35,7 +35,18 @@ function p = vtk_polydata_read(file, varargin)
     strPat = "%s" + lb;
     disp("strPat:" + strPat);
     disp("lb: " + lb);
-    disp("version: " + fileVersion);
+
+    fileVersion = str2double(fileVersion);
+
+    if (isnan(fileVersion))
+        warning("Version cannot be read! Setting version to default value 4.2.");
+        fileVersion = 4.2;
+    end
+
+    isVersion51Plus = fileVersion >= 5.1;
+    disp("Version: " + fileVersion);
+    disp("isVersion51Plus: " + isVersion51Plus);
+
 
     
     % Read the header (2 lines)
@@ -74,26 +85,83 @@ function p = vtk_polydata_read(file, varargin)
 
         elseif strcmp(mode,'intro') && any(strcmpi(key, ...
                 {'polygons','vertices','lines','triangle_strips'}))
-                
-            % Read the number of cells and storage size
+
+            % Read size information
             dat = vtkread(fid, "%d %d" + lb, 1);
-            n = double(dat{1});
-            storage = double(dat{2});
-            data_type = 'uint';            
-            
-            % Read the cell data
-            T = vtkreaddata(fid, p, storage, data_type, pars);
-            
-            % Connect the cell data together
-            i = 1; j = 1;
-            while i <= storage
-                cd{j} = T(i+1: i+T(i)) + 1;
-                j = j + 1;
-                i = i + T(i) + 1;
-            end
+
+            if (isVersion51Plus)
+
+                nOffset = double(dat{1}); % Read offset array size
+                nConn = double(dat{2}); % Read connectivity array size
+                mode = lower(key); % Change mode to use offset-conn logic
+
+            else
+
+                % Read the number of cells and storage size
+                n = double(dat{1});
+                storage = double(dat{2});
+                data_type = 'uint';            
+                
+                % Read the cell data
+                T = vtkreaddata(fid, p, storage, data_type, pars);
+                
+                % Connect the cell data together
+                i = 1; j = 1;
+                while i <= storage
+                    cd{j} = T(i+1: i+T(i)) + 1;
+                    j = j + 1;
+                    i = i + T(i) + 1;
+
+                end
                
             % Place in the appropriate array
             p.cells.(lower(key)) = cd;
+
+            end
+        
+        elseif any(strcmpi(mode, ... 
+                {'polygons','vertices','lines','triangle_strips'})) && ...
+                any(strcmpi(key, {'offsets', 'connectivity'}))
+            
+            % Offset-Connectivity logic for version >= 5.1
+
+            data_type = vtkreadstr(fid, strPat);
+
+            if (strcmpi(key, 'offsets'))
+                offsets = vtkreaddata(fid, p, nOffset, data_type, pars);
+                continue;
+            end
+
+            if (strcmpi(key, 'connectivity'))
+
+                if (isempty(offsets) && nConn ~= 0)
+                    error("Cannot process connectivity of " + mode ...
+                        + ". Missing offsets information!");
+                end
+
+                connArray = vtkreaddata(fid, p, nConn, data_type, pars);
+
+                offsetInd = 1; % index iterating the offset array
+                
+                while (offsetInd < nOffset)
+                    crnt = offsets(offsetInd); % position reading starts
+                    next = offsets(offsetInd + 1); % position reading should end before
+
+                    cd{offsetInd} = connArray(crnt + 1 : next) + 1; % +1 because points are using 1-based index
+
+                    disp(cd{offsetInd});
+
+                    offsetInd = offsetInd + 1;
+                end
+
+                % Place in the appropriate array
+                p.cells.(lower(mode)) = cd;
+                
+                offsets = []; % reset offset array
+                mode = 'intro'; % reset mode to intro
+                continue;
+
+            end
             
         elseif any(strcmpi(key, {'point_data', 'cell_data'}))
             
@@ -213,7 +281,6 @@ function s = vtkread(fid, str, n)
 end
 
 function s = vtkreadstr(fid, pat)
-    disp(pat);
     str = textscan(fid, pat, 1, 'ReturnOnError', 0, 'CommentStyle', '#');
     s = char(str{1});
 end
@@ -237,6 +304,8 @@ function X = vtkreaddata(fid, p, comp, data_type, pars)
             conv = 'uint32=>uint32';
         elseif strcmpi(data_type, 'vtkIdType')
             conv = 'uint32=>uint32';
+        elseif strcmpi(data_type, 'vtktypeint64')
+            conv = 'int64=>int64';
         else
             error('data_type %s is unsupported', data_type);
         end
