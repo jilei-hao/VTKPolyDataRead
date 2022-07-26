@@ -1,0 +1,27 @@
+# vtk DataFile Version 4.2
+vtk output
+ASCII
+DATASET POLYDATA
+POINTS 8 float
+0 0 0 1 0 0 1 1 0 
+0 1 0 0 0 1 1 0 1 
+1 1 1 0 1 1 
+POLYGONS 6 30
+4 0 3 2 1 
+4 4 5 6 7 
+4 0 1 5 4 
+4 1 2 6 5 
+4 2 3 7 6 
+4 3 0 4 7 
+
+POINT_DATA 8
+SCALARS scalars float
+LOOKUP_TABLE default
+0 1 2 3 4 5 6 7 
+CELL_DATA 12
+FIELD FieldData 2
+normals 3 6 double
+-0.1 -0.234 -0.345 -0.456 NaN -0.234 -0.1 -0.23 0.23
+-0.05 -0.34 -0.022 0.3 0.22 0.14 -0.23 -0.01 -0.17
+scalars 1 6 float
+0 1 2 3 4 5

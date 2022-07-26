@@ -14,18 +14,36 @@ function p = vtk_polydata_read(file, varargin)
 %   p.point_data(i).data    N x K array of values
 
     % Initialize the parameters
-    if(nargin > 1) pars = varargin{1}; else pars = struct(); end;
-    if(~isfield(pars,'encoding')) pars.encoding='ieee-be'; end;        
+    if(nargin > 1) pars = varargin{1}; else pars = struct(); end
+    if(~isfield(pars,'encoding')) pars.encoding='ieee-be'; end        
 
     % Open file
     fid = fopen(file, 'r');
+
+    % Read the first line
+    % # vtk DataFile Version x.x
+    firstLine = textscan(fid, '# %s %s %s %[^\n]\n', 1);
+    fileVersion = char(firstLine{4});
+    crInd = regexp(fileVersion, '\r', 'once'); %trying to detect CR
+
+    lb = '\n'; %default line break is LF only
+    
+    if (~isempty(crInd))
+        lb = '\r\n'; %line break is CRLF
+    end
+
+    strPat = "%s" + lb;
+    disp("strPat:" + strPat);
+    disp("lb: " + lb);
+    disp("version: " + fileVersion);
+
     
     % Read the header (2 lines)
-    p.hdr.name = vtkreadstr(fid, '%[^\n]\n');
-    p.hdr.type = vtkreadstr(fid, '%s\n');
+    p.hdr.name = vtkreadstr(fid, "%[^" + lb + "]" + lb);
+    p.hdr.type = vtkreadstr(fid, strPat);
       
     % Read the dataset type
-    p.hdr.dst = vtkreadstr(fid, 'DATASET %s\n');
+    p.hdr.dst = vtkreadstr(fid, 'DATASET ' + strPat);
     if ~strcmpi(p.hdr.dst, 'POLYDATA')
         error('Data types other than POLYDATA unsupported');
     end
@@ -46,7 +64,7 @@ function p = vtk_polydata_read(file, varargin)
         if strcmp(mode,'intro') && strcmpi(key, 'points')
             
             % Read the number of points and the type
-            dat = vtkread(fid, '%d %s\n', 1);
+            dat = vtkread(fid, "%d %s" + lb, 1);
             n = double(dat{1});
             data_type = char(dat{2});
 
@@ -58,7 +76,7 @@ function p = vtk_polydata_read(file, varargin)
                 {'polygons','vertices','lines','triangle_strips'}))
                 
             % Read the number of cells and storage size
-            dat = vtkread(fid, '%d %d\n', 1);
+            dat = vtkread(fid, "%d %d" + lb, 1);
             n = double(dat{1});
             storage = double(dat{2});
             data_type = 'uint';            
@@ -89,7 +107,7 @@ function p = vtk_polydata_read(file, varargin)
             n_fields = 0;
             
             % Read the number of attributes
-            nattr = vtkreadnum(fid, '%d\n');
+            nattr = vtkreadnum(fid, "%d" + lb);
                         
         elseif any(strcmpi(mode, {'point_data', 'cell_data'}))
             if (n_fields > 0)
@@ -98,7 +116,7 @@ function p = vtk_polydata_read(file, varargin)
                 arr.type = 'field';
                 ncomp = vtkreadnum(fid, '%d');
                 ntuples = vtkreadnum(fid, '%d');
-                data_type = vtkreadstr(fid, '%s\n');
+                data_type = vtkreadstr(fid, strPat);
                 
                 % Read the tuple data
                 X = vtkreaddata(fid, p, ncomp * ntuples, data_type, pars);
@@ -127,14 +145,14 @@ function p = vtk_polydata_read(file, varargin)
                 if any(strcmpi(key, {'normals','vectors'}))
 
                     % Read the data
-                    data_type = vtkreadstr(fid, '%s\n');
+                    data_type = vtkreadstr(fid, strPat);
                     X = vtkreaddata(fid, p, nattr * 3, data_type, pars);
                     arr.data = reshape(X, 3, [])';
 
                 elseif strcmpi(key, 'tensors')
 
                     % Read the data
-                    data_type = vtkreadstr(fid, '%s\n');
+                    data_type = vtkreadstr(fid, strPat);
                     X = vtkreaddata(fid, p, nattr * 9, data_type, pars);
                     arr.data = reshape(X, 9, [])';
 
@@ -142,15 +160,15 @@ function p = vtk_polydata_read(file, varargin)
 
                     % Read the data
                     ncomp = vtkreadnum(fid, '%d');
-                    data_type = vtkreadstr(fid, '%s\n');
+                    data_type = vtkreadstr(fid, strPat);
                     X = vtkreaddata(fid, p, nattr * ncomp, data_type, pars);
                     arr.data = reshape(X, ncomp, [])';
 
                 elseif strcmpi(key, 'scalars')
                     
                     % Read the scarar data
-                    data_type = vtkreadstr(fid, '%s\n');
-                    junk = vtkreadstr(fid, '%s %s\n');
+                    data_type = vtkreadstr(fid, strPat);
+                    junk = vtkreadstr(fid, "%s %s" + lb);
                     X = vtkreaddata(fid, p, nattr, data_type, pars);
                     arr.data = reshape(X, 1, [])';
                     
@@ -171,7 +189,7 @@ function p = vtk_polydata_read(file, varargin)
                 
                 % Enter field reading mode
                 vtkreadstr(fid, '%s');
-                n_fields = vtkreadnum(fid, '%d\n');
+                n_fields = vtkreadnum(fid, "%d" + lb);
                 
             else
 
@@ -195,6 +213,7 @@ function s = vtkread(fid, str, n)
 end
 
 function s = vtkreadstr(fid, pat)
+    disp(pat);
     str = textscan(fid, pat, 1, 'ReturnOnError', 0, 'CommentStyle', '#');
     s = char(str{1});
 end
