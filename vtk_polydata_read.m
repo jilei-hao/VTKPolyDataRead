@@ -92,6 +92,29 @@ function p = vtk_polydata_read(file, varargin)
             nattr = vtkreadnum(fid, '%d\n');
                         
         elseif any(strcmpi(mode, {'point_data', 'cell_data'}))
+            if (n_fields > 0)
+                % Read the field information
+                arr.name = vtk_decode(key);
+                arr.type = 'field';
+                ncomp = vtkreadnum(fid, '%d');
+                ntuples = vtkreadnum(fid, '%d');
+                data_type = vtkreadstr(fid, '%s\n');
+                
+                % Read the tuple data
+                X = vtkreaddata(fid, p, ncomp * ntuples, data_type, pars);
+                arr.data = reshape(X, ncomp, [])';
+                                
+                % Append the array
+                if ~isfield(p, mode)
+                    p.(mode)(1) = arr;
+                else
+                    p.(mode)(1+length(p.(mode))) = arr;
+                end
+                
+                % Decrement the field counter
+                n_fields = n_fields - 1;
+                continue;
+            end
             
             if any(strcmpi(key, {'normals','scalars','color_scalars',...
                 'vectors', 'texture_coordinates', 'tensors'}))
@@ -150,31 +173,8 @@ function p = vtk_polydata_read(file, varargin)
                 vtkreadstr(fid, '%s');
                 n_fields = vtkreadnum(fid, '%d\n');
                 
-            elseif n_fields > 0
-                
-                % Read the field information
-                arr.name = vtk_decode(key);
-                arr.type = 'field';
-                ncomp = vtkreadnum(fid, '%d');
-                ntuples = vtkreadnum(fid, '%d');
-                data_type = vtkreadstr(fid, '%s\n');
-                
-                % Read the tuple data
-                X = vtkreaddata(fid, p, ncomp * ntuples, data_type, pars);
-                arr.data = reshape(X, ncomp, [])';
-                                
-                % Append the array
-                if ~isfield(p, mode)
-                    p.(mode)(1) = arr;
-                else
-                    p.(mode)(1+length(p.(mode))) = arr;
-                end
-                
-                % Decrement the field counter
-                n_fields = n_fields - 1;
-                
             else
-                
+
                 error('Unknown entry %s', key);
                 
             end
