@@ -33,8 +33,6 @@ function p = vtk_polydata_read(file, varargin)
     end
 
     strPat = "%s" + lb;
-    disp("strPat:" + strPat);
-    disp("lb: " + lb);
 
     fileVersion = str2double(fileVersion);
 
@@ -44,11 +42,7 @@ function p = vtk_polydata_read(file, varargin)
     end
 
     isVersion51Plus = fileVersion >= 5.1;
-    disp("Version: " + fileVersion);
-    disp("isVersion51Plus: " + isVersion51Plus);
 
-
-    
     % Read the header (2 lines)
     p.hdr.name = vtkreadstr(fid, "%[^" + lb + "]" + lb);
     p.hdr.type = vtkreadstr(fid, strPat);
@@ -148,8 +142,6 @@ function p = vtk_polydata_read(file, varargin)
                     next = offsets(offsetInd + 1); % position reading should end before
 
                     cd{offsetInd} = connArray(crnt + 1 : next) + 1; % +1 because points are using 1-based index
-
-                    disp(cd{offsetInd});
 
                     offsetInd = offsetInd + 1;
                 end
